@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>교과용도서 선정 — 처음 시작하기</title>
+<style>body{margin:0;background:#edf2f7;color:#18283b;font:17px/1.75 'Malgun Gothic',sans-serif}main{max-width:880px;margin:40px auto;padding:40px;background:white;border-radius:18px}h1{font-size:32px;line-height:1.4}h2{font-size:23px;margin-top:38px;border-bottom:2px solid #dbe7f0;padding-bottom:8px}h3{font-size:19px}p,li{margin-bottom:12px}.tag{color:#36678c;font-weight:bold}.notice{padding:18px;background:#fff4db;border-left:5px solid #b17713;border-radius:5px}.step{display:grid;grid-template-columns:42px 1fr;gap:15px;margin:22px 0}.n{background:#17486c;color:white;border-radius:50%;width:36px;height:36px;text-align:center;line-height:36px;font-weight:bold}code{background:#edf2f7;padding:2px 5px;border-radius:4px}a{color:#125c8f}small{color:#52677b}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dbe4ed;text-align:left;padding:10px}th{background:#edf2f7}details{padding:15px;background:#f5f8fa;margin:10px 0}summary{cursor:pointer;font-weight:bold}@media(max-width:600px){main{margin:0;padding:22px;border-radius:0}h1{font-size:27px}table{font-size:14px}}@media print{body{background:white}main{margin:0;padding:0}details{break-inside:avoid}h2{break-after:avoid}}</style></head>
+<body><main>
+<p class="tag">학교별 설치형 · Google Apps Script · 2026-09-19 수정본</p>
+<h1>교과용도서 선정<br>여기서 시작하세요</h1>
+<p>설치는 업무담당자가 한 번만 합니다. 선생님은 담당자가 알려 준 웹 주소에서 본인 아이디로 접속하면 됩니다.</p>
+<div class="notice"><strong>이 파일은 설치 안내입니다.</strong><br>프로그램은 <code>Index.html</code>을 컴퓨터에서 더블클릭해서 실행하는 방식이 아닙니다. 아래 순서대로 Google에 설치한 뒤 웹 앱 주소를 엽니다.</div>
+<h2>담당자: 최초 설치 6단계</h2>
+<div class="step"><span class="n">1</span><div><strong>압축파일을 풀고 빈 스프레드시트를 만듭니다.</strong><br>학교별로 별도 파일을 만들고, <b>확장 프로그램 → Apps Script</b>를 엽니다.</div></div>
+<div class="step"><span class="n">2</span><div><strong>프로그램 파일 3개를 복사합니다.</strong><br>파일은 메모장 등으로 열어 전체 내용을 복사하고, 구글 편집기에서도 기존 내용을 전부 선택한 뒤 교체합니다.
+<table><tr><th>받은 파일</th><th>Google 편집기에서 넣을 곳</th></tr><tr><td>Code.gs</td><td>기본 Code.gs 전체 교체</td></tr><tr><td>Index.html</td><td>+ → HTML → 이름을 <b>Index</b>로 생성 후 전체 교체</td></tr><tr><td>appsscript.json</td><td>프로젝트 설정에서 매니페스트 표시 후 전체 교체</td></tr></table>
+<small>Index 안의 긴 영문·숫자는 정상입니다. 내용을 수정하거나 일부만 복사하지 마세요. 저장 완료 표시를 기다립니다.</small></div></div>
+<div class="step"><span class="n">3</span><div><strong>파일이 제대로 복사되었는지 확인합니다.</strong><br>Code.gs 선택 → 함수 <code>verifyInstallation</code> 선택 → 실행. 로그에 <code>"complete":true</code>, <code>"error":""</code>가 나오는지 확인합니다.</div></div>
+<div class="step"><span class="n">4</span><div><strong>학교와 최초 담당자 아이디를 설정합니다.</strong><br>스프레드시트로 돌아가 새로고침 → <b>교과서 선정 프로그램 → 최초 학교 설정</b>. 학교명과 담당자 아이디를 입력합니다. 최초 권한 승인은 담당자 계정에서 진행합니다. 생성되는 <code>_APP_DATA</code> 시트는 지우거나 직접 수정하지 마세요.</div></div>
+<div class="step"><span class="n">5</span><div><strong>웹 앱으로 배포합니다.</strong><br>Apps Script → <b>배포 → 새 배포 → 웹 앱</b>. 실행 사용자 <b>나</b>, 접근 권한 <b>모든 사용자</b>로 배포하고 <code>/exec</code>로 끝나는 주소를 복사합니다.<br><small>조직 정책으로 모든 사용자가 허용되지 않으면 학교 Google 관리자와 확인해야 합니다. 공식 절차: <a href="https://developers.google.com/apps-script/guides/web">Google 웹 앱 배포 안내</a>.</small></div></div>
+<div class="step"><span class="n">6</span><div><strong>담당자 로그인 → 학교 업무 설정 → 테스트합니다.</strong><br>도서, 교직원 아이디, 교과협의회와 역할을 저장합니다. 가상 자료로 저장 후 새로고침, 서식 테스트의 PDF 4쪽과 다운로드를 확인한 뒤 선생님께 안내합니다.</div></div>
+<div class="notice"><strong>아이디가 곧 접근 수단입니다.</strong><br>아이디를 아는 사람은 해당 계정으로 접속할 수 있습니다. 추측하기 어려운 아이디를 개별 발급하고 주소·아이디 목록은 학교 밖에 공유하지 마세요. 학생 개인정보 등 민감한 자료는 입력하지 않습니다.</div>
+<h2>선생님: 접속부터 저장까지</h2>
+<ol><li>담당자가 보낸 웹 앱 주소를 엽니다.</li><li>본인 학교 아이디 → <b>내 업무 시작하기</b>.</li><li>이름·교과 확인 후 화면 순서대로 평가를 작성합니다. 역할별 자세한 안내는 앱의 <b>사용 매뉴얼</b>에 있습니다.</li><li><b>저장 완료</b> 표시를 확인한 뒤 작업을 마치고 로그아웃합니다.</li></ol>
+<p>일반 선생님은 Apps Script 편집기를 열거나 프로그램을 설치할 필요가 없습니다.</p>
+<h2>PDF 예시도 확인하세요</h2>
+<p><a href="서식_1_2_3_가상예시.pdf">서식 1·2·3 PDF 예시 열기 — 총 4쪽</a><br>개인평가표 2장 + 총괄표 1장 + 추천의견서 1장입니다. 가상 이름·점수·의견·TEST 서명을 사용했으며 제출용이 아닙니다.</p>
+<p>앱에서는 담당자가 <b>서식 테스트 → 서식1·2·3 예시 자동 생성 → 선택한 예시 PDF 미리보기</b>를 누릅니다. 끝까지 내려 모든 페이지를 확인하고 PDF 다운로드를 누릅니다.</p>
+<h2>기존 설치를 업데이트할 때</h2>
+<p>같은 압축본의 Code.gs와 Index.html을 함께 교체하고 저장합니다. <b>배포 → 배포 관리 → 수정 → 새 버전 → 배포</b>로 업데이트합니다. 기존 학교 설정과 데이터는 그대로 둡니다. <a href="https://developers.google.com/apps-script/concepts/deployments">Google 배포 관리 안내</a></p>
+<h2>문제가 생겼나요?</h2>
+<details><summary>화면이 하얗거나 PDF 미리보기가 회색이에요</summary><p>최신 압축본의 Code.gs·Index.html을 모두 교체했는지, 저장 후 새 버전으로 배포했는지 확인합니다. 기존 /exec 주소를 새로고침합니다. PDF는 다운로드 후 별도 뷰어에서도 확인하세요.</p></details>
+<details><summary>최초 학교 설정 안내만 보여요</summary><p>오류가 아니라 설치 준비 상태입니다. 위 4단계를 먼저 진행하세요.</p></details>
+<details><summary>저장 충돌 안내가 떠요</summary><p>다른 사용자가 먼저 저장한 상태입니다. 작성 중인 문구를 따로 보관하고 새로고침하여 최신 내용을 확인한 뒤 다시 입력하세요.</p></details>
+<p>자세한 절차와 점검표: <a href="상세_실행_매뉴얼.md">상세 실행 매뉴얼</a><br>검증 범위: <a href="검증_결과.md">검증 결과</a> · 외부 라이브러리 고지: <a href="THIRD_PARTY_LICENSES.md">라이브러리 저작권</a></p>
+<hr><small>배포 파일에는 학교 운영 데이터가 없습니다. 각 학교는 자체 지침에 맞게 설정하고 실제 제출 전 서식·수치·서명을 다시 확인하세요.</small>
+</main></body></html>
