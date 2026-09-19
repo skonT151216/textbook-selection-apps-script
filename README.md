@@ -8,10 +8,10 @@
 
 ### [최신 설치용 ZIP 다운로드 →](https://github.com/skonT151216/textbook-selection-apps-script/releases/latest)
 
-위 페이지의 **Assets → `textbook-selection-gas-20260919.zip`**을 받으세요. GitHub가 자동 제공하는 `Source code (zip)`이 아니라 **첨부된 설치용 ZIP**입니다.
+위 페이지의 Assets에서 `textbook-selection-gas-20260919.zip` 파일을 받으세요. GitHub가 자동 제공하는 `Source code (zip)`이 아니라 **첨부된 설치용 ZIP**입니다.
 
 1. ZIP 압축을 풉니다.
-2. **`처음_시작하기.html`**을 더블클릭해 설치 순서를 확인합니다.
+2. `처음_시작하기.html` 파일을 더블클릭해 설치 순서를 확인합니다.
 3. Google Apps Script에 `Code.gs`, `Index.html`, `appsscript.json` 세 파일을 넣습니다.
 4. 학교 최초 설정과 웹 앱 배포를 마친 뒤, 각 선생님에게 웹 앱 주소와 본인 아이디를 개별 안내합니다.
 
