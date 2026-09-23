@@ -708,6 +708,52 @@ var TextbookSelectionGas = (function(exports) {
 	var DATA_SHEET = "_APP_DATA";
 	var CHUNK_SIZE = 4e4;
 	var SESSION_SECONDS = 21600;
+	var APP_VERSION = "v2026.09.23.1";
+	var RELEASES_URL = "https://github.com/skonT151216/textbook-selection-apps-script/releases/latest";
+	var RELEASES_API_URL = "https://api.github.com/repos/skonT151216/textbook-selection-apps-script/releases/latest";
+	function releaseVersionParts(tag) {
+		const match = /^v(\d{4})\.(\d{1,2})\.(\d{1,2})\.(\d+)$/.exec(tag);
+		return match ? match.slice(1).map(Number) : null;
+	}
+	function newerRelease(tag) {
+		const latest = releaseVersionParts(tag);
+		const installed = releaseVersionParts(APP_VERSION);
+		if (!latest || !installed) return false;
+		for (let index = 0; index < latest.length; index++) {
+			if (latest[index] !== installed[index]) return latest[index] > installed[index];
+		}
+		return false;
+	}
+	function updateNotice(user, currentConfig, stored) {
+		if (!user) return response(401, { error: "학교 아이디 로그인이 필요합니다." });
+		const setup = savedSetup(stored.data);
+		const identity = setup && setup.completedAt ? setupIdentity(setup, user.email) : null;
+		const manager = setup && setup.completedAt ? Boolean(identity && identity.manager) : user.email === currentConfig.bootstrapManagerId;
+		if (!manager) return response(403, { error: "업무담당자만 업데이트 정보를 확인할 수 있습니다." });
+		const basic = { currentVersion: APP_VERSION, releasesUrl: RELEASES_URL, updateAvailable: false };
+		try {
+			const cache = CacheService.getScriptCache();
+			const key = "textbook-selection-latest-release";
+			let latest = cache.get(key);
+			if (!latest) {
+				const result = UrlFetchApp.fetch(RELEASES_API_URL, {
+					muteHttpExceptions: true,
+					headers: { Accept: "application/vnd.github+json", "User-Agent": "textbook-selection-apps-script" }
+				});
+				if (result.getResponseCode() !== 200) return response(200, basic);
+				const release = JSON.parse(result.getContentText());
+				latest = typeof release.tag_name === "string" ? release.tag_name : "";
+				if (releaseVersionParts(latest)) cache.put(key, latest, 21600);
+			}
+			return response(200, {
+				...basic,
+				latestVersion: latest,
+				updateAvailable: newerRelease(latest)
+			});
+		} catch {
+			return response(200, basic);
+		}
+	}
 	function properties() {
 		return PropertiesService.getScriptProperties();
 	}
@@ -836,6 +882,10 @@ var TextbookSelectionGas = (function(exports) {
 			};
 		}
 		const user = sessionUser(input.token);
+		if (path === "/api/update-notice" && method === "GET") {
+			if (!user) return { status: 401, body: { error: "학교 아이디 로그인이 필요합니다." } };
+			return result(updateNotice(user, config(), readWorkspaceRecord()));
+		}
 		if (path === "/api/workspace" && method === "GET") return result(loadWorkspace(user, config(), readWorkspaceRecord()));
 		if (path === "/api/form-test" && method === "GET") return result(loadFormTest(user, readWorkspaceRecord()));
 		if (path === "/api/setup" && method === "POST" || path === "/api/workspace" && method === "PUT") {
