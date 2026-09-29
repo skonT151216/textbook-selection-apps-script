@@ -391,6 +391,7 @@ var TextbookSelectionGas = (function(exports) {
 				vicePrincipalName: exampleName(saved.setup.vicePrincipalName, "예시교감"),
 				managerName: exampleName(saved.setup.managerName, "예시담당자"),
 				completedAt: saved.setup.completedAt,
+				showSelectionNameOnEvaluation: saved.setup.showSelectionNameOnEvaluation !== false,
 				googleDomain: "",
 				managerEmail: "",
 				vicePrincipalEmail: "",
@@ -486,6 +487,7 @@ var TextbookSelectionGas = (function(exports) {
 			managerEmail: normalizeSchoolId(input.managerEmail),
 			vicePrincipalName: text(input.vicePrincipalName),
 			vicePrincipalEmail: normalizeSchoolId(input.vicePrincipalEmail),
+			showSelectionNameOnEvaluation: input.showSelectionNameOnEvaluation !== false,
 			staff,
 			completedAt: (/* @__PURE__ */ new Date()).toISOString()
 		};
@@ -781,7 +783,7 @@ var TextbookSelectionGas = (function(exports) {
 	var DATA_SHEET = "_APP_DATA";
 	var CHUNK_SIZE = 4e4;
 	var SESSION_SECONDS = 21600;
-	var APP_VERSION = "v2026.09.29.4";
+	var APP_VERSION = "v2026.09.29.5";
 	var RELEASES_URL = "https://github.com/skonT151216/textbook-selection-apps-script/releases/latest";
 	var RELEASES_API_URL = "https://api.github.com/repos/skonT151216/textbook-selection-apps-script/releases/latest";
 	function releaseVersionParts(tag) {

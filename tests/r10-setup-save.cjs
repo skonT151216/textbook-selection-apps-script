@@ -24,6 +24,14 @@ const frontend = {
 };
 vm.createContext(frontend);
 vm.runInContext(functionSource('fB') + '\n' + functionSource('v1') + '\n' + functionSource('JI') + '\n' + functionSource('k3'), frontend);
+vm.runInContext(functionSource('qd') + '\n' + functionSource('selectionTargetOnSheet'), frontend);
+const courseUnits = [
+  { id: 'korean-one', subject: '국어', mode: 'course', selectionName: '언어생활 탐구 3-1', status: 'active' },
+  { id: 'korean-two', subject: '국어', mode: 'course', selectionName: '논술 3-3', status: 'active' },
+];
+assert.equal(frontend.selectionTargetOnSheet({ selectionUnits: courseUnits, activeUnitId: 'korean-two', subject: '국어' }).selectionName, '논술 3-3', 'the active target is shown on its own sheet');
+assert.equal(frontend.selectionTargetOnSheet({ selectionUnits: courseUnits, activeUnitId: 'korean-two', subject: '국어', setup: { showSelectionNameOnEvaluation: false } }), null, 'the school can hide the target name');
+assert.equal(frontend.selectionTargetOnSheet({ selectionUnits: [{ ...courseUnits[0], mode: 'single' }], activeUnitId: 'korean-one', subject: '국어' }), null, 'legacy selection mode keeps its form');
 const rebuiltLegacy = frontend.k3({ subject: '과학', label: '과학 3', mode: 'single', volumes: ['3'], candidates: [], books: [], members: [], criteria: [] });
 assert.equal(Object.hasOwn(rebuiltLegacy, 'selectionName'), false, 'legacy units do not gain an empty grouping field');
 
@@ -43,7 +51,7 @@ assert.ok(updatedReviews.some((review) => review.teacher === '교사A' && review
 assert.ok(frontend.v1({ ...previousUnit, reviews: updatedReviews }), 'active unit remains locked in setup UI');
 
 const source = fs.readFileSync(path.join(root, 'Code.gs'), 'utf8')
-  .replace('exports.apiDispatch = apiDispatch;', 'exports.testSaveSetup = saveSetup;\n\texports.testStructureChanged = selectionUnitStructureChanged;\n\texports.apiDispatch = apiDispatch;');
+  .replace('exports.apiDispatch = apiDispatch;', 'exports.testSaveSetup = saveSetup;\n\texports.testFormTestSource = formTestSource;\n\texports.testStructureChanged = selectionUnitStructureChanged;\n\texports.apiDispatch = apiDispatch;');
 new vm.Script(source);
 const server = {};
 vm.createContext(server);
@@ -85,6 +93,17 @@ assert.ok(savedUnit.reviews.some((review) => review.teacher === '교사A' && rev
 assert.deepEqual(JSON.parse(JSON.stringify(savedUnit.signatures)), previousUnit.signatures);
 assert.deepEqual(JSON.parse(JSON.stringify(savedUnit.recommendations)), previousUnit.recommendations);
 assert.deepEqual(JSON.parse(JSON.stringify(result.body.data.members.과학)), ['교사B', '교사C'], 'unrelated staff change is saved');
+
+const displayOnly = structuredClone(body);
+displayOnly.setup.showSelectionNameOnEvaluation = false;
+const displaySave = save(displayOnly);
+assert.equal(displaySave.status, 200, displaySave.body.error);
+assert.equal(displaySave.body.data.setup.showSelectionNameOnEvaluation, false, 'evaluation sheet option is saved');
+assert.deepEqual(JSON.parse(JSON.stringify(displaySave.body.data.selectionUnits[0].reviews.find((review) => review.teacher === '교사A'))), signedReview, 'display setting does not reset the signed review');
+assert.deepEqual(JSON.parse(JSON.stringify(displaySave.body.data.selectionUnits[0].signatures)), previousUnit.signatures, 'display setting does not reset signatures');
+assert.equal(api.testFormTestSource(displaySave.body.data).setup.showSelectionNameOnEvaluation, false, 'test form respects the saved display option');
+const legacyDisplay = save(body);
+assert.equal(legacyDisplay.body.data.setup.showSelectionNameOnEvaluation, true, 'older schools default to visible target names for course selection');
 
 const changed = structuredClone(body);
 changed.workspace.books.push({ ...book, id: 'b2', title: '새 교과서' });
