@@ -153,6 +153,7 @@ var TextbookSelectionGas = (function(exports) {
 	function validateSelectionUnit(unit, books) {
 		const errors = [];
 		if (!Array.isArray(unit.candidates) || !Array.isArray(unit.volumes)) return [`${unit.label || "선정 단위"}: 후보 또는 권 구성을 확인해 주세요.`];
+		if (unit.mode === "course" && !text(unit.selectionName)) errors.push(`${unit.label}: 선정 대상명을 입력해 주세요.`);
 		if (new Set(unit.volumes).size !== unit.volumes.length) errors.push(`${unit.label}: 학년·학기/권 구분이 중복되었습니다.`);
 		const seen = /* @__PURE__ */ new Set();
 		for (const candidate of unit.candidates) {
@@ -165,6 +166,7 @@ var TextbookSelectionGas = (function(exports) {
 			const components = candidate.bookIds.map((id) => books.find((book) => book.id === id)).filter((book) => Boolean(book));
 			if (components.length !== candidate.bookIds.length) errors.push(`${unit.label}: 삭제되었거나 찾을 수 없는 도서가 연결되어 있습니다.`);
 			if (components.some((book) => book.subject !== unit.subject)) errors.push(`${unit.label}: 다른 과목 도서가 연결되어 있습니다.`);
+			if (unit.mode === "course" && components.some((book) => text(book.selectionName || book.title) !== text(unit.selectionName))) errors.push(`${unit.label}: 다른 선정 대상의 도서가 연결되어 있습니다.`);
 			if (unit.mode !== "bundle" && components.length !== 1) errors.push(`${unit.label}: 개별 선정 후보에는 도서 1권만 연결해 주세요.`);
 			if (unit.mode !== "bundle" && unit.volumes.length > 0 && components.some((book) => !unit.volumes.includes(book.volume))) errors.push(`${unit.label}: 설정한 학년·학기/권과 다른 도서가 연결되어 있습니다.`);
 			if (unit.mode === "bundle") {
@@ -174,6 +176,17 @@ var TextbookSelectionGas = (function(exports) {
 				if (publishers.length > 1) errors.push(`${unit.label}: 묶음 후보의 출판사가 서로 다릅니다.`);
 				for (const volume of unit.volumes) if (!components.some((book) => book.volume === volume)) errors.push(`${unit.label}: ${volume} 도서가 빠진 묶음이 있습니다.`);
 			}
+		}
+		return unique(errors);
+	}
+	function validateCourseCoverage(units, books) {
+		const errors = [];
+		for (const subject of unique(units.filter((unit) => unit.mode === "course" && unit.status !== "archived").map((unit) => unit.subject))) {
+			const subjectUnits = units.filter((unit) => unit.subject === subject && unit.status !== "archived");
+			if (subjectUnits.some((unit) => unit.mode !== "course")) errors.push(`${subject}: 도서별 선정과 다른 선정 방식을 함께 사용할 수 없습니다.`);
+			const counts = new Map();
+			for (const unit of subjectUnits) for (const candidate of unit.candidates || []) for (const id of candidate.bookIds || []) counts.set(id, (counts.get(id) || 0) + 1);
+			for (const book of books.filter((item) => item.subject === subject)) if (counts.get(book.id) !== 1) errors.push(`${subject}: ${book.title} 도서는 선정 대상에 정확히 한 번 포함되어야 합니다.`);
 		}
 		return unique(errors);
 	}
@@ -296,6 +309,7 @@ var TextbookSelectionGas = (function(exports) {
 			subject: unit.subject,
 			label: unit.label,
 			mode: unit.mode,
+			selectionName: unit.selectionName,
 			volumes: [...unit.volumes],
 			status: unit.status,
 			candidates: unit.candidates.map(({ id, label, bookIds }) => ({
@@ -330,12 +344,13 @@ var TextbookSelectionGas = (function(exports) {
 			members,
 			departmentHeads: Object.fromEntries(Object.entries(saved.departmentHeads || {}).map(([subject, name]) => [subject, exampleName(name, "예시교과부장")])),
 			summaryWriters: Object.fromEntries(Object.entries(saved.summaryWriters || {}).map(([subject, name]) => [subject, exampleName(name, "예시작성자")])),
-			books: saved.books.map(({ id, subject, publisher, author, title, volume, price }) => ({
+			books: saved.books.map(({ id, subject, publisher, author, title, selectionName, volume, price }) => ({
 				id,
 				subject,
 				publisher,
 				author,
 				title,
+				selectionName,
 				volume,
 				price
 			})),
@@ -456,13 +471,16 @@ var TextbookSelectionGas = (function(exports) {
 		const books = Array.isArray(submitted.books) ? submitted.books : [];
 		const units = Array.isArray(submitted.selectionUnits) ? submitted.selectionUnits : [];
 		if (!books.length || new Set(books.map((book) => book.id)).size !== books.length || books.some((book) => !(book === null || book === void 0 ? void 0 : book.id) || !text(book.subject) || !members[book.subject] || !text(book.publisher) || !text(book.title))) return response(400, { error: "도서·가격 목록을 다시 확인해 주세요." });
-		if (!units.length || units.some((unit) => !(unit === null || unit === void 0 ? void 0 : unit.id) || !members[unit.subject] || !selectionUnitReady(unit, books))) return response(400, { error: "과목별 선정 방식과 평가표 구성을 다시 확인해 주세요." });
+		if (!units.length || units.some((unit) => !(unit === null || unit === void 0 ? void 0 : unit.id) || !members[unit.subject])) return response(400, { error: "과목별 선정 방식과 평가표 구성을 다시 확인해 주세요." });
 		const unitErrors = units.flatMap((unit) => validateSelectionUnit(unit, books));
 		if (unitErrors.length) return response(400, { error: unitErrors[0] });
+		const coverageErrors = validateCourseCoverage(units, books);
+		if (coverageErrors.length) return response(400, { error: coverageErrors[0] });
+		if (units.some((unit) => !selectionUnitReady(unit, books))) return response(400, { error: "평가 후보가 없는 선정 대상을 확인해 주세요." });
 		const previousUnits = Array.isArray((_stored$data = stored.data) === null || _stored$data === void 0 ? void 0 : _stored$data.selectionUnits) ? stored.data.selectionUnits : [];
 		for (const previous of previousUnits.filter(selectionUnitHasActivity)) {
 			const next = units.find((unit) => unit.id === previous.id);
-			if (!next || JSON.stringify(previous.candidates) !== JSON.stringify(next.candidates)) return response(409, { error: `${previous.label}은 평가가 시작되어 후보 구성을 바꿀 수 없습니다.` });
+			if (!next || JSON.stringify(previous.candidates) !== JSON.stringify(next.candidates) || previous.mode !== next.mode || previous.label !== next.label || previous.selectionName !== next.selectionName || JSON.stringify(previous.volumes) !== JSON.stringify(next.volumes)) return response(409, { error: `${previous.label}은 평가가 시작되어 선정 방식과 후보 구성을 바꿀 수 없습니다.` });
 		}
 		const workspace = {
 			...stored.data || {},
@@ -539,14 +557,16 @@ var TextbookSelectionGas = (function(exports) {
 			const books = Array.isArray(incoming.books) ? incoming.books : [];
 			const unitErrors = incomingUnits.flatMap((unit) => validateSelectionUnit(unit, books));
 			if (unitErrors.length) return response(400, { error: unitErrors[0] });
+			const coverageErrors = validateCourseCoverage(incomingUnits, books);
+			if (coverageErrors.length) return response(400, { error: coverageErrors[0] });
 			for (const previous of savedUnits.filter(selectionUnitHasActivity)) {
 				const submitted = incomingUnits.find((unit) => unit.id === previous.id);
-				if (!submitted || JSON.stringify(previous.candidates) !== JSON.stringify(submitted.candidates)) return response(409, { error: `${previous.label}은 평가가 시작되어 후보 구성을 직접 바꿀 수 없습니다.` });
+				if (!submitted || JSON.stringify(previous.candidates) !== JSON.stringify(submitted.candidates) || previous.mode !== submitted.mode || previous.label !== submitted.label || previous.selectionName !== submitted.selectionName || JSON.stringify(previous.volumes) !== JSON.stringify(submitted.volumes)) return response(409, { error: `${previous.label}은 평가가 시작되어 선정 방식과 후보 구성을 직접 바꿀 수 없습니다.` });
 			}
 			const savedBooks = Array.isArray(saved.books) ? saved.books : [];
 			const changedBookIds = new Set(books.filter((book) => {
 				const previous = savedBooks.find((item) => item.id === book.id);
-				return !previous || previous.subject !== book.subject || previous.volume !== book.volume || previous.publisher !== book.publisher || previous.author !== book.author || previous.title !== book.title || previous.price !== book.price;
+				return !previous || previous.subject !== book.subject || previous.volume !== book.volume || previous.publisher !== book.publisher || previous.author !== book.author || previous.title !== book.title || previous.selectionName !== book.selectionName || previous.price !== book.price;
 			}).map((book) => book.id));
 			savedBooks.filter((book) => !books.some((item) => item.id === book.id)).forEach((book) => changedBookIds.add(book.id));
 			const selectionUnits = incomingUnits.map((unit) => {
@@ -708,7 +728,7 @@ var TextbookSelectionGas = (function(exports) {
 	var DATA_SHEET = "_APP_DATA";
 	var CHUNK_SIZE = 4e4;
 	var SESSION_SECONDS = 21600;
-	var APP_VERSION = "v2026.09.29.1";
+	var APP_VERSION = "v2026.09.29.2";
 	var RELEASES_URL = "https://github.com/skonT151216/textbook-selection-apps-script/releases/latest";
 	var RELEASES_API_URL = "https://api.github.com/repos/skonT151216/textbook-selection-apps-script/releases/latest";
 	function releaseVersionParts(tag) {
