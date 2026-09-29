@@ -708,7 +708,7 @@ var TextbookSelectionGas = (function(exports) {
 	var DATA_SHEET = "_APP_DATA";
 	var CHUNK_SIZE = 4e4;
 	var SESSION_SECONDS = 21600;
-	var APP_VERSION = "v2026.09.23.1";
+	var APP_VERSION = "v2026.09.29.1";
 	var RELEASES_URL = "https://github.com/skonT151216/textbook-selection-apps-script/releases/latest";
 	var RELEASES_API_URL = "https://api.github.com/repos/skonT151216/textbook-selection-apps-script/releases/latest";
 	function releaseVersionParts(tag) {
