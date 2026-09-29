@@ -193,6 +193,29 @@ var TextbookSelectionGas = (function(exports) {
 	function selectionUnitReady(unit, books) {
 		return Array.isArray(unit.candidates) && unit.candidates.length > 0 && validateSelectionUnit(unit, books).length === 0;
 	}
+	function selectionUnitStructureChanged(previous, next) {
+		if (!next) return true;
+		const groupingChanged = (previous.mode === "course" || next.mode === "course") && text(previous.selectionName) !== text(next.selectionName);
+		return JSON.stringify(previous.candidates) !== JSON.stringify(next.candidates) || previous.mode !== next.mode || previous.label !== next.label || JSON.stringify(previous.volumes) !== JSON.stringify(next.volumes) || groupingChanged;
+	}
+	function preserveSetupEvaluation(previous, next) {
+		const incomingReviews = Array.isArray(next.reviews) ? next.reviews : [];
+		const reviewed = previous.reviews.filter(reviewHasActivity);
+		return {
+			...next,
+			status: previous.status,
+			criteria: previous.criteria,
+			reviews: [
+				...incomingReviews.map((review) => reviewed.find((old) => old.teacher === review.teacher) || review),
+				...reviewed.filter((old) => !incomingReviews.some((review) => review.teacher === old.teacher))
+			],
+			topScore: previous.topScore,
+			gap: previous.gap,
+			recommendations: previous.recommendations,
+			signatures: previous.signatures,
+			opinionSources: previous.opinionSources
+		};
+	}
 	//#endregion
 	//#region app/evaluation-criteria.ts
 	var requiredPriceArea = "17. 교과용도서의 가격";
@@ -480,14 +503,18 @@ var TextbookSelectionGas = (function(exports) {
 		const previousUnits = Array.isArray((_stored$data = stored.data) === null || _stored$data === void 0 ? void 0 : _stored$data.selectionUnits) ? stored.data.selectionUnits : [];
 		for (const previous of previousUnits.filter(selectionUnitHasActivity)) {
 			const next = units.find((unit) => unit.id === previous.id);
-			if (!next || JSON.stringify(previous.candidates) !== JSON.stringify(next.candidates) || previous.mode !== next.mode || previous.label !== next.label || previous.selectionName !== next.selectionName || JSON.stringify(previous.volumes) !== JSON.stringify(next.volumes)) return response(409, { error: `${previous.label}은 평가가 시작되어 선정 방식과 후보 구성을 바꿀 수 없습니다.` });
+			if (selectionUnitStructureChanged(previous, next)) return response(409, { error: `${previous.label}은 평가가 시작되어 선정 방식과 후보 구성을 바꿀 수 없습니다.` });
 		}
+		const protectedUnits = units.map((unit) => {
+			const previous = previousUnits.find((item) => item.id === unit.id);
+			return previous && selectionUnitHasActivity(previous) ? preserveSetupEvaluation(previous, unit) : unit;
+		});
 		const workspace = {
 			...stored.data || {},
 			...submitted,
 			setup,
 			books,
-			selectionUnits: units,
+			selectionUnits: protectedUnits,
 			departmentHeads: heads,
 			summaryWriters: writers
 		};
@@ -561,7 +588,7 @@ var TextbookSelectionGas = (function(exports) {
 			if (coverageErrors.length) return response(400, { error: coverageErrors[0] });
 			for (const previous of savedUnits.filter(selectionUnitHasActivity)) {
 				const submitted = incomingUnits.find((unit) => unit.id === previous.id);
-				if (!submitted || JSON.stringify(previous.candidates) !== JSON.stringify(submitted.candidates) || previous.mode !== submitted.mode || previous.label !== submitted.label || previous.selectionName !== submitted.selectionName || JSON.stringify(previous.volumes) !== JSON.stringify(submitted.volumes)) return response(409, { error: `${previous.label}은 평가가 시작되어 선정 방식과 후보 구성을 직접 바꿀 수 없습니다.` });
+				if (selectionUnitStructureChanged(previous, submitted)) return response(409, { error: `${previous.label}은 평가가 시작되어 선정 방식과 후보 구성을 직접 바꿀 수 없습니다.` });
 			}
 			const savedBooks = Array.isArray(saved.books) ? saved.books : [];
 			const changedBookIds = new Set(books.filter((book) => {
@@ -728,7 +755,7 @@ var TextbookSelectionGas = (function(exports) {
 	var DATA_SHEET = "_APP_DATA";
 	var CHUNK_SIZE = 4e4;
 	var SESSION_SECONDS = 21600;
-	var APP_VERSION = "v2026.09.29.2";
+	var APP_VERSION = "v2026.09.29.3";
 	var RELEASES_URL = "https://github.com/skonT151216/textbook-selection-apps-script/releases/latest";
 	var RELEASES_API_URL = "https://api.github.com/repos/skonT151216/textbook-selection-apps-script/releases/latest";
 	function releaseVersionParts(tag) {
