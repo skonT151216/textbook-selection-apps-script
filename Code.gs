@@ -572,6 +572,12 @@ var TextbookSelectionGas = (function(exports) {
 		}
 		return record;
 	}
+	function sameRecommendationContent(left, right) {
+		const previous = asRecord(left) || {};
+		const next = asRecord(right) || {};
+		const keys = Object.keys(previous);
+		return keys.length === Object.keys(next).length && keys.every((key) => Object.prototype.hasOwnProperty.call(next, key) && previous[key] === next[key]);
+	}
 	function saveWorkspace(user, stored, body) {
 		if (!user) return response(401, { error: "학교 아이디 로그인이 필요합니다." });
 		const incoming = { ...asRecord(body) || {} };
@@ -727,7 +733,7 @@ var TextbookSelectionGas = (function(exports) {
 			}
 			if (scope === "recommend" && (identity.manager || isHead)) {
 				if (Object.keys(incomingUnit.recommendations || {}).some((id) => !savedUnit.candidates.some((candidate) => candidate.id === id))) return response(400, { error: "추천 도서 정보를 다시 확인해 주세요." });
-				if (JSON.stringify(savedUnit.recommendations) !== JSON.stringify(incomingUnit.recommendations)) {
+				if (!sameRecommendationContent(savedUnit.recommendations, incomingUnit.recommendations)) {
 					delete signatures[selectionKey(unitId, "recommend:writer")];
 					delete signatures[selectionKey(unitId, "recommend:approver")];
 				}
@@ -783,7 +789,7 @@ var TextbookSelectionGas = (function(exports) {
 	var DATA_SHEET = "_APP_DATA";
 	var CHUNK_SIZE = 4e4;
 	var SESSION_SECONDS = 21600;
-	var APP_VERSION = "v2026.09.29.5";
+	var APP_VERSION = "v2026.10.01.1";
 	var RELEASES_URL = "https://github.com/skonT151216/textbook-selection-apps-script/releases/latest";
 	var RELEASES_API_URL = "https://api.github.com/repos/skonT151216/textbook-selection-apps-script/releases/latest";
 	function releaseVersionParts(tag) {

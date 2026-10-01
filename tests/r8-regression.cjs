@@ -23,7 +23,7 @@ function extractFunction(name) {
 
 const context = {};
 vm.createContext(context);
-vm.runInContext(['qd', '$d', 'qg', 'iL', 'sL', 'oL', 'recommendationChangeReasons'].map(extractFunction).join('\n'), context);
+vm.runInContext(['b1', 'qd', '$d', 'qg', 'iL', 'sL', 'oL', 'recommendationChangeReasons'].map(extractFunction).join('\n'), context);
 const book = { id: 'b1', subject: '영어', publisher: '출판사', title: '도서', price: 10000 };
 const state = {
   subject: '영어', activeUnitId: 'u1', selectionUnits: [{ id: 'u1', label: '영어' }],
@@ -42,7 +42,8 @@ const qzStart = html.indexOf('function QZ(');
 const actionStart = html.indexOf('U=async()=>', qzStart);
 const actionEnd = html.indexOf(';return(0,w.jsxs)(w.Fragment', actionStart);
 assert.ok(actionStart > qzStart && actionEnd > actionStart, 'recommendation handlers');
-const recommendationHandlers = new Function('e', 'r', 'n', 'g', 'b', 'A', 'o', 'AL', 'oL', `let ${html.slice(actionStart, actionEnd)};return {U,I,N}`);
+const recommendationHandlersSource = new Function('e', 'r', 'n', 'g', 'b', 'A', 'o', 'AL', 'oL', 'b1', `let ${html.slice(actionStart, actionEnd)};return {U,I,N}`);
+const recommendationHandlers = (...args) => recommendationHandlersSource(...args, context.b1);
 assert.ok(html.includes('onClick:()=>N(M.b,j),children:"내용 확인 완료"'), 'confirmation button');
 assert.ok(html.includes('readOnly:!a||x,readOnlyReason:x?') && html.includes('readOnly:!i||x,readOnlyReason:x?'), 'unsaved recommendation edits cannot be signed');
 
