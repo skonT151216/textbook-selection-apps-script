@@ -546,7 +546,7 @@ var TextbookSelectionGas = (function(exports) {
 			summaryWriters: writers
 		};
 		delete workspace.workspaceRevision;
-		if (JSON.stringify(workspace).length > 9e5) return response(413, { error: "저장 용량을 초과했습니다." });
+		if (encodedWorkspace(workspace).length > MAX_WORKSPACE_CHARS) return response(413, { error: "저장 용량을 초과했습니다. 기존 저장본은 유지됩니다." });
 		const revision = nextRevision(stored.revision);
 		return response(200, {
 			ok: true,
@@ -654,7 +654,7 @@ var TextbookSelectionGas = (function(exports) {
 				setup: saved.setup
 			};
 			delete merged.workspaceRevision;
-			if (JSON.stringify(merged).length > 9e5) return response(413, { error: "저장 용량을 초과했습니다." });
+			if (encodedWorkspace(merged).length > MAX_WORKSPACE_CHARS) return response(413, { error: "저장 용량을 초과했습니다. 기존 저장본은 유지됩니다." });
 			const revision = nextRevision(stored.revision);
 			return response(200, {
 				ok: true,
@@ -762,7 +762,7 @@ var TextbookSelectionGas = (function(exports) {
 			signatures: nextUnit.signatures,
 			opinionSources: nextUnit.opinionSources
 		};
-		if (JSON.stringify(merged).length > 9e5) return response(413, { error: "저장 용량을 초과했습니다." });
+		if (encodedWorkspace(merged).length > MAX_WORKSPACE_CHARS) return response(413, { error: "저장 용량을 초과했습니다. 기존 저장본은 유지됩니다." });
 		const revision = nextRevision(stored.revision);
 		return response(200, {
 			ok: true,
@@ -788,8 +788,11 @@ var TextbookSelectionGas = (function(exports) {
 	//#region apps-script-src/server.ts
 	var DATA_SHEET = "_APP_DATA";
 	var CHUNK_SIZE = 4e4;
+	var MAX_WORKSPACE_CHARS = 8e6;
+	var SNAPSHOT_PROPERTY = "WORKSPACE_SNAPSHOT_V1";
+	var SNAPSHOT_SHEETS = ["_APP_DATA_V2_A", "_APP_DATA_V2_B"];
 	var SESSION_SECONDS = 21600;
-	var APP_VERSION = "v2026.10.01.1";
+	var APP_VERSION = "v2026.10.02.1";
 	var RELEASES_URL = "https://github.com/skonT151216/textbook-selection-apps-script/releases/latest";
 	var RELEASES_API_URL = "https://api.github.com/repos/skonT151216/textbook-selection-apps-script/releases/latest";
 	function releaseVersionParts(tag) {
@@ -868,7 +871,82 @@ var TextbookSelectionGas = (function(exports) {
 		}
 		return sheet;
 	}
-	function readWorkspaceRecord() {
+	// Lossless storage codec. Images are pooled by exact bytes, never resized.
+	function sameStoredValue(left, right) {
+		if (left === right) return true;
+		if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+		if (Array.isArray(left) || Array.isArray(right)) return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => sameStoredValue(value, right[index]));
+		const keys = Object.keys(left);
+		return keys.length === Object.keys(right).length && keys.every((key) => Object.prototype.hasOwnProperty.call(right, key) && sameStoredValue(left[key], right[key]));
+	}
+	function encodedWorkspace(data) {
+		const workspace = JSON.parse(JSON.stringify(data));
+		const unit = Array.isArray(workspace.selectionUnits) && workspace.selectionUnits.find((item) => item.id === workspace.activeUnitId);
+		const aliases = [];
+		if (unit) for (const key of ["subject", "criteria", "reviews", "topScore", "gap", "recommendations", "signatures", "opinionSources"]) {
+			if (Object.prototype.hasOwnProperty.call(workspace, key) && Object.prototype.hasOwnProperty.call(unit, key) && sameStoredValue(workspace[key], unit[key])) {
+				aliases.push(key);
+				delete workspace[key];
+			}
+		}
+		const images = [];
+		const imageIds = new Map();
+		function pack(value, key) {
+			if (key === "image" && typeof value === "string" && value.startsWith("data:image/")) {
+				if (!imageIds.has(value)) { imageIds.set(value, images.length); images.push(value); }
+				return { signatureImageIndex: imageIds.get(value) };
+			}
+			if (Array.isArray(value)) return value.map((item) => pack(item, ""));
+			if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, pack(item, name)]));
+			return value;
+		}
+		const compact = pack(workspace, "");
+		return JSON.stringify({ format: "textbook-workspace-v1", data: compact, images, aliases });
+	}
+	function decodedWorkspace(value) {
+		const envelope = JSON.parse(value);
+		if (!envelope || envelope.format !== "textbook-workspace-v1" || !asRecord(envelope.data) || !Array.isArray(envelope.images) || !Array.isArray(envelope.aliases)) throw new Error("저장본 형식을 확인할 수 없습니다. 기존 저장본을 수정하지 않았습니다.");
+		function unpack(item, key) {
+			if (key === "image" && item && typeof item === "object" && !Array.isArray(item) && Object.keys(item).length === 1 && Object.prototype.hasOwnProperty.call(item, "signatureImageIndex")) {
+				const index = item.signatureImageIndex;
+				if (!Number.isInteger(index) || index < 0 || typeof envelope.images[index] !== "string" || !envelope.images[index].startsWith("data:image/")) throw new Error("서명 이미지 연결을 확인할 수 없습니다. 기존 저장본을 유지합니다.");
+				return envelope.images[index];
+			}
+			if (Array.isArray(item)) return item.map((child) => unpack(child, ""));
+			if (item && typeof item === "object") return Object.fromEntries(Object.entries(item).map(([name, child]) => [name, unpack(child, name)]));
+			return item;
+		}
+		const workspace = unpack(envelope.data, "");
+		const unit = Array.isArray(workspace.selectionUnits) && workspace.selectionUnits.find((item) => item.id === workspace.activeUnitId);
+		for (const key of envelope.aliases) {
+			if (!["subject", "criteria", "reviews", "topScore", "gap", "recommendations", "signatures", "opinionSources"].includes(key) || !unit || !Object.prototype.hasOwnProperty.call(unit, key) || Object.prototype.hasOwnProperty.call(workspace, key)) throw new Error("평가자료 연결을 확인할 수 없습니다. 기존 저장본을 유지합니다.");
+			workspace[key] = JSON.parse(JSON.stringify(unit[key]));
+		}
+		return workspace;
+	}
+	function snapshotChecksum(value) {
+		return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, value, Utilities.Charset.UTF_8));
+	}
+	function snapshotPointer() {
+		const value = properties().getProperty(SNAPSHOT_PROPERTY);
+		if (!value) return null;
+		const pointer = JSON.parse(value);
+		if (!pointer || pointer.format !== 1 || !pointer.current || !SNAPSHOT_SHEETS.includes(pointer.current.sheet) || !Number.isInteger(pointer.current.revision) || pointer.current.revision < 1) throw new Error("저장본 위치 정보를 확인할 수 없습니다. 데이터 시트를 삭제하지 마세요.");
+		return pointer;
+	}
+	function readSnapshot(meta) {
+		if (!meta || !SNAPSHOT_SHEETS.includes(meta.sheet) || !Number.isInteger(meta.chunks) || meta.chunks < 1 || meta.chunks > Math.ceil(MAX_WORKSPACE_CHARS / (CHUNK_SIZE - 1))) throw new Error("저장본 정보를 확인할 수 없습니다.");
+		const sheet = spreadsheet().getSheetByName(meta.sheet);
+		if (!sheet || sheet.getLastRow() !== meta.chunks + 1) throw new Error("저장본 일부가 누락되었습니다. 이전 저장본을 삭제하지 마세요.");
+		const rows = sheet.getRange(1, 1, meta.chunks + 1, 4).getValues();
+		if (rows[0][0] !== "snapshot-v1" || Number(rows[0][1]) !== meta.revision || rows[0][2] !== meta.checksum || Number(rows[0][3]) !== meta.chunks) throw new Error("저장본 표지 정보를 확인할 수 없습니다.");
+		const chunks = rows.slice(1);
+		if (chunks.some((row, index) => row[0] !== "workspace" || Number(row[1]) !== index || typeof row[2] !== "string" || !row[2].startsWith("s:") || Number(row[3]) !== meta.revision)) throw new Error("저장본 조각을 확인할 수 없습니다.");
+		const value = chunks.map((row) => row[2].slice(2)).join("");
+		if (value.length > MAX_WORKSPACE_CHARS || snapshotChecksum(value) !== meta.checksum) throw new Error("저장본 내용 검증에 실패했습니다. 이전 저장본을 삭제하지 마세요.");
+		return { data: decodedWorkspace(value), revision: meta.revision };
+	}
+	function readLegacyWorkspaceRecord() {
 		if (!config().ready) return {
 			data: null,
 			revision: 0
@@ -889,25 +967,55 @@ var TextbookSelectionGas = (function(exports) {
 			revision: Number(rows[0][3]) || 0
 		};
 	}
+	function readWorkspaceRecord() {
+		if (!config().ready) return { data: null, revision: 0 };
+		// Never load a partially written staging slot or silently replace a broken
+		// committed snapshot with empty data. Retry only if a writer switched slots.
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const pointer = snapshotPointer();
+			if (!pointer) return readLegacyWorkspaceRecord();
+			try {
+				const record = readSnapshot(pointer.current);
+				if (JSON.stringify(snapshotPointer()) === JSON.stringify(pointer)) return record;
+			} catch (error) {
+				if (JSON.stringify(snapshotPointer()) === JSON.stringify(pointer)) throw error;
+			}
+		}
+		throw new Error("다른 저장 작업이 진행 중입니다. 잠시 후 다시 시도해 주세요.");
+	}
 	function writeWorkspaceRecord(data, revision) {
-		const sheet = dataSheet();
-		const value = JSON.stringify(data);
-		const rows = [];
-		for (let offset = 0, index = 0; offset < value.length; offset += CHUNK_SIZE, index++) rows.push([
-			"workspace",
-			index,
-			value.slice(offset, offset + CHUNK_SIZE),
-			revision
-		]);
-		if (!rows.length) rows.push([
-			"workspace",
-			0,
-			"{}",
-			revision
-		]);
-		const existing = Math.max(0, sheet.getLastRow() - 1);
-		if (existing) sheet.getRange(2, 1, existing, 4).clearContent();
-		sheet.getRange(2, 1, rows.length, 4).setValues(rows);
+		const value = encodedWorkspace(data);
+		if (value.length > MAX_WORKSPACE_CHARS) throw new Error("저장 용량을 초과했습니다. 기존 저장본은 유지됩니다.");
+		const pointer = snapshotPointer();
+		const previous = readWorkspaceRecord();
+		if (!Number.isSafeInteger(revision) || revision <= previous.revision) throw new Error("저장 순서가 변경되었습니다. 기존 저장본을 유지합니다.");
+		const name = pointer && pointer.current.sheet === SNAPSHOT_SHEETS[0] ? SNAPSHOT_SHEETS[1] : SNAPSHOT_SHEETS[0];
+		const book = spreadsheet();
+		let sheet = book.getSheetByName(name);
+		if (!sheet) { sheet = book.insertSheet(name); sheet.hideSheet(); }
+		const chunks = [];
+		for (let offset = 0; offset < value.length;) {
+			let end = Math.min(offset + CHUNK_SIZE, value.length);
+			if (end < value.length && /[\uD800-\uDBFF]/.test(value[end - 1]) && /[\uDC00-\uDFFF]/.test(value[end])) end--;
+			chunks.push(value.slice(offset, end));
+			offset = end;
+		}
+		const meta = { sheet: name, revision, checksum: snapshotChecksum(value), chunks: chunks.length };
+		// Prefix every chunk so arbitrary JSON fragments cannot be interpreted
+		// as spreadsheet formulas, even when a fragment begins with '='.
+		const rows = [["snapshot-v1", revision, meta.checksum, meta.chunks], ...chunks.map((chunk, index) => ["workspace", index, "s:" + chunk, revision])];
+		if (sheet.getMaxRows() < rows.length) sheet.insertRowsAfter(sheet.getMaxRows(), rows.length - sheet.getMaxRows());
+		// Only the inactive staging slot is cleared. The current slot and the
+		// original r13 _APP_DATA sheet are never cleared by this writer.
+		if (sheet.getLastRow()) sheet.getRange(1, 1, sheet.getLastRow(), 4).clearContent();
+		sheet.getRange(1, 1, rows.length, 4).setNumberFormat("@").setValues(rows);
+		SpreadsheetApp.flush();
+		const verified = readSnapshot(meta);
+		if (!sameStoredValue(JSON.parse(JSON.stringify(data)), verified.data)) throw new Error("저장 후 원본 비교에 실패했습니다. 기존 저장본은 유지됩니다.");
+		const next = JSON.stringify({ format: 1, current: meta, previous: pointer ? pointer.current : null });
+		try { properties().setProperty(SNAPSHOT_PROPERTY, next); }
+		catch (error) { if (properties().getProperty(SNAPSHOT_PROPERTY) !== next) throw error; }
+		if (properties().getProperty(SNAPSHOT_PROPERTY) !== next) throw new Error("저장본 전환을 확인하지 못했습니다. 데이터 시트를 삭제하지 마세요.");
 	}
 	function sessionCache() {
 		return CacheService.getScriptCache();
