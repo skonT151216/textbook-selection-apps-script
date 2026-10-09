@@ -1,0 +1,41 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const crypto = require('node:crypto').webcrypto;
+const { clone, personId } = require('./identity-fixture.cjs');
+const ctx = { crypto, Uint8Array, w: { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
+  RI: x => String(x || '').trim(), DI: ['이름'], MI: ['계정'], jI: ['교과'], Kg: x => String(x || ''), fA: x => String(x || '').trim().toLowerCase(), ig: x => /^[a-z0-9가-힣._-]{2,64}$/.test(x) };
+vm.createContext(ctx);
+for (const file of ['teacher-identity.js', 'browser-identity.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'identity', file), 'utf8'), ctx);
+const staff = [{ id: personId('kim1'), name: personId('kim1'), displayName: '김교사', email: 'kim1', subjects: ['윤리'] }];
+const rows = [['이름', '교과', '계정'], ['김교사', '윤리', 'kim1'], ['김교사', '역사', 'kim1'], ['김교사', '역사', 'kim2'], ['김교사', '윤리', 'kim3']];
+const imported = clone(ctx.identityImport(rows, staff, 'school-id', [], ['윤리', '역사']));
+assert.deepEqual(imported.errors, []);
+assert.equal(imported.staff.length, 3, 'same account across councils merges, namesakes with other accounts stay distinct');
+assert.deepEqual(imported.staff[0].subjects, ['윤리', '역사']);
+assert.equal(imported.staff[0].id, staff[0].id);
+assert.equal(new Set(imported.staff.map(p => p.id)).size, 3);
+assert.deepEqual(staff[0].subjects, ['윤리'], 'preview cannot mutate existing roster');
+const conflict = clone(ctx.identityImport([rows[0], ['다른성명', '윤리', 'kim1']], staff, 'school-id', [], ['윤리']));
+assert.ok(conflict.errors.length); assert.deepEqual(conflict.staff, staff);
+const formula = clone(ctx.identityImport(rows, staff, 'school-id', [2], ['윤리', '역사']));
+assert.ok(formula.errors.length); assert.deepEqual(formula.staff, staff);
+const unknown = clone(ctx.identityImport([rows[0], ['김교사', '윤리/오타교과', 'new-kim']], staff, 'school-id', [], ['윤리']));
+assert.equal(unknown.rows[0].skipped, true); assert.deepEqual(unknown.staff, staff, 'unknown council cannot silently attach a partial match');
+ctx.teacherDirectory = imported.staff;
+for (const person of imported.staff) {
+  const option = ctx.teacherRenderProps('option', { children: person.id });
+  assert.equal(option.value, person.id, 'implicit HTML values must stay as person references');
+  assert.ok(option.children.includes('김교사'));
+  assert.ok(option.children.includes('등록 '));
+  assert.equal(ctx.teacherRenderProps('td', { children: person.id }).children, '김교사', 'official table cells show only real names');
+}
+const canonical = ctx.TeacherIdentity.normalize({ setup: { staff: imported.staff }, members: { 윤리: imported.staff.filter(p => p.subjects.includes('윤리')).map(p => p.id), 역사: imported.staff.filter(p => p.subjects.includes('역사')).map(p => p.id) } });
+assert.deepEqual(clone(canonical.setup.staff.map(p => p.name)), ['김교사', '김교사', '김교사']);
+assert.equal(new Set(canonical.setup.staff.map(p => p.id)).size, 3);
+assert.equal(ctx.teacherName('위원: ' + imported.staff[1].id), '위원: 김교사');
+const uuidFallback = { crypto: { getRandomValues: values => crypto.getRandomValues(values) }, Uint8Array };
+vm.createContext(uuidFallback); vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'identity', 'teacher-identity.js'), 'utf8'), uuidFallback);
+assert.match(uuidFallback.TeacherIdentity.newId(), /^teacher_[0-9a-f]{32}$/, 'older browser UUID fallback still uses cryptographic random bytes');
+console.log('r15 account-keyed import, multi-council merge, conflict safety, stable option values and real-name-only form labels passed');

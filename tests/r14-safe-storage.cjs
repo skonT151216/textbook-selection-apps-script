@@ -117,5 +117,16 @@ for (const id of ['u0', 'u1']) {
 const final = clone(concurrency.api.testRead().data);
 assert.ok(final.selectionUnits[0].signatures['unit:u0:summary:checker']);
 assert.ok(final.selectionUnits[1].signatures['unit:u1:summary:checker'], 'stale other-unit snapshot does not erase earlier save');
-assert.deepEqual(final.selectionUnits[2], clone(original.selectionUnits[2]), 'untouched final unit unchanged');
+// r15 adds only explicit person references during the first successful save.
+// Reconstruct the exact expected schema without invoking the migration under test;
+// all image bytes, names, timestamps, audit fields, scores and opinions must match.
+const expectedUntouched = clone(original.selectionUnits[2]);
+const expectedId = account => 'teacher_' + [...account].map(ch => ch.codePointAt(0).toString(16).padStart(6, '0')).join('');
+expectedUntouched.reviews.forEach((review, i) => {
+  review.teacher = expectedId('teacher' + i);
+  review.signature.personId = expectedId('teacher' + i);
+});
+expectedUntouched.signatures['unit:u2:recommend:writer'].personId = expectedId('teacher0');
+assert.deepEqual(final.selectionUnits[2], expectedUntouched, 'untouched final unit changes only by the specified reference migration');
+assert.deepEqual(clone(concurrency.sheets.get('_APP_DATA').cells), clone(storageFixture(original).sheets.get('_APP_DATA').cells), 'the complete pre-migration final remains recoverable');
 console.log(JSON.stringify({ result: 'r14 codec, migration, failure injection, cap boundary, Unicode and concurrent scoped-save tests passed', originalChars: JSON.stringify(original).length, compactChars: packed.length, uniqueImageLargeChars: compactSize }));

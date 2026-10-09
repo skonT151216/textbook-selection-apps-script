@@ -66,7 +66,7 @@ function storageFixture(data = null, revision = data ? 1 : 0) {
     LockService: { getScriptLock: () => ({ tryLock: () => !faults.lockBusy, releaseLock: () => events.push('unlock') }) },
   };
   let code = fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8');
-  code = code.replace('exports.apiDispatch = apiDispatch;', 'exports.testEncode=encodedWorkspace;exports.testDecode=decodedWorkspace;exports.testRead=readWorkspaceRecord;exports.testWrite=writeWorkspaceRecord;exports.testSnapshot=readSnapshot;exports.testSave=saveWorkspace;exports.testSource=formTestSource;exports.apiDispatch = apiDispatch;');
+  code = code.replace('exports.apiDispatch = apiDispatch;', 'exports.testIdentity=TeacherIdentity;exports.testEncode=encodedWorkspace;exports.testDecode=decodedWorkspace;exports.testRead=readWorkspaceRecord;exports.testWrite=writeWorkspaceRecord;exports.testSnapshot=readSnapshot;exports.testSave=saveWorkspace;exports.testSource=formTestSource;exports.apiDispatch = apiDispatch;');
   vm.createContext(context); vm.runInContext(code, context);
   return { api: context.TextbookSelectionGas, sheets, props, faults, events, cache, clone };
 }
