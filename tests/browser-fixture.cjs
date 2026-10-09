@@ -9,7 +9,7 @@ async function browserFixture(data = workspace(true)) {
   let html = zlib.gunzipSync(Buffer.from(fs.readFileSync(path.join(__dirname, '..', 'Index.html'), 'utf8').match(/<pre id="app-bundle">([\s\S]*?)<\/pre>/)[1].replace(/\s/g, ''), 'base64')).toString();
   const anchor = '(0,j7.createRoot)(document.getElementById("root")).render';
   if (!html.includes(anchor)) throw Error('Browser test export anchor missing');
-  html = html.replace(anchor, 'var identityTestRoot=(0,j7.createRoot)(document.getElementById("root"));window.__identityTest={TeacherIdentity,HI,fZ,Fb,qd,U3,qg,oL,lL,LZ,QZ,MZ,jZ,render:(type,props)=>identityTestRoot.render((0,w.jsx)(type,props)),setDirectory:(s,n)=>{teacherDirectory=s;teacherHistoricalNames=n||{}}};identityTestRoot.render');
+  html = html.replace(anchor, 'var identityTestRoot=(0,j7.createRoot)(document.getElementById("root"));window.__identityTest={TeacherIdentity,HI,fZ,Fb,qd,U3,qg,oL,lL,LZ,QZ,MZ,jZ,unitDisplayLabel,selectionDisplayName,render:(type,props)=>identityTestRoot.render((0,w.jsx)(type,props)),setDirectory:(s,n)=>{teacherDirectory=s;teacherHistoricalNames=n||{}}};identityTestRoot.render');
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || path.join(userCache, 'puppeteer/chrome/mac_arm-154.0.8037.57/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'), headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
   await context.exposeBinding('gasTestDispatch', async (_, request) => {

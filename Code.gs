@@ -936,7 +936,7 @@ var TeacherIdentity = (function () {
 	var SNAPSHOT_PROPERTY = "WORKSPACE_SNAPSHOT_V1";
 	var SNAPSHOT_SHEETS = ["_APP_DATA_V2_A", "_APP_DATA_V2_B"];
 	var SESSION_SECONDS = 21600;
-	var APP_VERSION = "v2026.10.09.1";
+	var APP_VERSION = "v2026.10.09.2";
 	var RELEASES_URL = "https://github.com/skonT151216/textbook-selection-apps-script/releases/latest";
 	var RELEASES_API_URL = "https://api.github.com/repos/skonT151216/textbook-selection-apps-script/releases/latest";
 	function releaseVersionParts(tag) {

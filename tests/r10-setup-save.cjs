@@ -24,7 +24,7 @@ const frontend = {
 };
 vm.createContext(frontend);
 vm.runInContext(functionSource('fB') + '\n' + functionSource('v1') + '\n' + functionSource('JI') + '\n' + functionSource('k3'), frontend);
-vm.runInContext(functionSource('qd') + '\n' + functionSource('selectionTargetOnSheet'), frontend);
+vm.runInContext(functionSource('courseName') + '\n' + functionSource('singleUnitTargetName') + '\n' + functionSource('qd') + '\n' + functionSource('selectionTargetOnSheet'), frontend);
 const courseUnits = [
   { id: 'korean-one', subject: '국어', mode: 'course', selectionName: '언어생활 탐구 3-1', status: 'active' },
   { id: 'korean-two', subject: '국어', mode: 'course', selectionName: '논술 3-3', status: 'active' },
