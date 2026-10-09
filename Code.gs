@@ -936,7 +936,7 @@ var TeacherIdentity = (function () {
 	var SNAPSHOT_PROPERTY = "WORKSPACE_SNAPSHOT_V1";
 	var SNAPSHOT_SHEETS = ["_APP_DATA_V2_A", "_APP_DATA_V2_B"];
 	var SESSION_SECONDS = 21600;
-	var APP_VERSION = "v2026.10.09.2";
+	var APP_VERSION = "v2026.10.09.3";
 	var RELEASES_URL = "https://github.com/skonT151216/textbook-selection-apps-script/releases/latest";
 	var RELEASES_API_URL = "https://api.github.com/repos/skonT151216/textbook-selection-apps-script/releases/latest";
 	function releaseVersionParts(tag) {
@@ -952,31 +952,38 @@ var TeacherIdentity = (function () {
 		}
 		return false;
 	}
-	function updateNotice(user, currentConfig, stored) {
+	function updateNotice(user, currentConfig, stored, refresh) {
 		if (!user) return response(401, { error: "학교 아이디 로그인이 필요합니다." });
 		const setup = savedSetup(stored.data);
 		const identity = setup && setup.completedAt ? setupIdentity(setup, user.email) : null;
 		const manager = setup && setup.completedAt ? Boolean(identity && identity.manager) : user.email === currentConfig.bootstrapManagerId;
 		if (!manager) return response(403, { error: "업무담당자만 업데이트 정보를 확인할 수 있습니다." });
-		const basic = { currentVersion: APP_VERSION, releasesUrl: RELEASES_URL, updateAvailable: false };
+		const basic = { currentVersion: APP_VERSION, releasesUrl: RELEASES_URL, updateAvailable: false, checkStatus: "unavailable" };
 		try {
 			const cache = CacheService.getScriptCache();
-			const key = "textbook-selection-latest-release";
-			let latest = cache.get(key);
-			if (!latest) {
+			const key = "textbook-selection-latest-release-v2";
+			let cached = null;
+			try { cached = JSON.parse(cache.get(key) || "null"); } catch {}
+			const age = cached && Date.now() - cached.checkedAt;
+			if (!cached || !releaseVersionParts(cached.version) || !Number.isFinite(age) || age < 0 || age >= (refresh ? 60000 : 3600000)) {
 				const result = UrlFetchApp.fetch(RELEASES_API_URL, {
 					muteHttpExceptions: true,
 					headers: { Accept: "application/vnd.github+json", "User-Agent": "textbook-selection-apps-script" }
 				});
 				if (result.getResponseCode() !== 200) return response(200, basic);
 				const release = JSON.parse(result.getContentText());
-				latest = typeof release.tag_name === "string" ? release.tag_name : "";
-				if (releaseVersionParts(latest)) cache.put(key, latest, 21600);
+				const latest = typeof release.tag_name === "string" ? release.tag_name : "";
+				if (!releaseVersionParts(latest) || release.draft || release.prerelease) return response(200, basic);
+				cached = { version: latest, checkedAt: Date.now() };
+				cache.put(key, JSON.stringify(cached), 3600);
 			}
+			const available = newerRelease(cached.version);
 			return response(200, {
 				...basic,
-				latestVersion: latest,
-				updateAvailable: newerRelease(latest)
+				latestVersion: cached.version,
+				checkedAt: new Date(cached.checkedAt).toISOString(),
+				updateAvailable: available,
+				checkStatus: available ? "update-available" : "up-to-date"
 			});
 		} catch {
 			return response(200, basic);
@@ -1222,7 +1229,8 @@ var TeacherIdentity = (function () {
 				status: 200,
 				body: {
 					ready: current.ready,
-					schoolName: current.schoolName
+					schoolName: current.schoolName,
+					currentVersion: APP_VERSION
 				}
 			};
 		}
@@ -1241,9 +1249,9 @@ var TeacherIdentity = (function () {
 			};
 		}
 		const user = sessionUser(input.token);
-		if (path === "/api/update-notice" && method === "GET") {
+		if (path === "/api/update-notice" && (method === "GET" || method === "POST")) {
 			if (!user) return { status: 401, body: { error: "학교 아이디 로그인이 필요합니다." } };
-			return result(updateNotice(user, config(), readWorkspaceRecord()));
+			return result(updateNotice(user, config(), readWorkspaceRecord(), method === "POST"));
 		}
 		if (path === "/api/workspace" && method === "GET") {
 			if (!user) return { status: 401, body: { error: "학교 아이디 로그인이 필요합니다." } };

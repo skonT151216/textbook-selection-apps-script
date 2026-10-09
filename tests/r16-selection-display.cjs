@@ -43,9 +43,11 @@ const koreanBooks = ['a', 'b'].map(id => ({ id, subject: '국어', title: '국�
 const koreanUnit = { id: 'korean', subject: '국어', label: '국어 3-1', mode: 'single', candidates: koreanBooks.map(book => ({ bookIds: [book.id] })) };
 assert.equal(context.unitDisplayLabel(koreanUnit, koreanBooks), '국어 3-1', 'middle-school plain 국어 title keeps its original display');
 assert.equal(context.selectionTargetOnSheet({ subject: '국어', activeUnitId: 'korean', selectionUnits: [koreanUnit], books: koreanBooks }), null, 'plain 국어 does not gain redundant target metadata');
-// This release changes the server version, never the storage implementation.
+// r17 adds read-only version/update metadata; the entire storage and business
+// implementation still matches r15, not just a selected list of functions.
 const gas = fs.readFileSync(path.join(root, 'Code.gs'), 'utf8');
 const oldGas = cp.execFileSync('git', ['show', '0f715cf:Code.gs'], { cwd: root, encoding: 'utf8' });
-assert.equal(gas.replace('v2026.10.09.2', 'v2026.10.09.1'), oldGas);
+assert.equal(gas.slice(0, gas.indexOf('\tvar APP_VERSION')), oldGas.slice(0, oldGas.indexOf('\tvar APP_VERSION')));
+assert.equal(gas.slice(gas.indexOf('\tfunction properties()'), gas.indexOf('\tfunction apiDispatch(')), oldGas.slice(oldGas.indexOf('\tfunction properties()'), oldGas.indexOf('\tfunction apiDispatch(')));
 for (const script of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(script[1]);
 console.log('r16 single-title display, four science subjects, middle-school fallback, opt-out, exact grouping/storage/fingerprint preservation and syntax passed');
